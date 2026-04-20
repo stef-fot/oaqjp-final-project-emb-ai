@@ -1,4 +1,4 @@
-# Emotion Detection - AI-Based Web Application
+# Final Project - Emotion Detector (oaqjp-final-project-emb-ai)
 
 ## Project Overview
 An AI-powered web application that performs emotion detection on customer feedback
