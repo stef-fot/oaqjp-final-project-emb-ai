@@ -1,0 +1,1651 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Emotion Detector — Multilingual AI Analysis</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap"
+    rel="stylesheet"
+  />
+  <style>
+    /* =========================================================
+       Reset & tokens
+       ========================================================= */
+    :root {
+      --bg-0: #05071a;
+      --bg-1: #0a0f2c;
+      --bg-2: #11173d;
+      --panel: rgba(20, 24, 64, 0.55);
+      --panel-2: rgba(28, 33, 84, 0.55);
+      --stroke: rgba(126, 138, 255, 0.18);
+      --stroke-strong: rgba(126, 138, 255, 0.35);
+      --text: #e7ecff;
+      --text-dim: #9aa3c7;
+      --text-mute: #6f78a3;
+      --accent: #7c5cff;          /* electric purple */
+      --accent-2: #4f7dff;        /* deep blue */
+      --accent-3: #19e3c1;        /* teal/cyan analytical accent */
+      --pos: #27e0a4;
+      --neu: #ffd166;
+      --neg: #ff6b6b;
+      --joy: #ffb84d;
+      --sad: #6c8bff;
+      --ang: #ff6b6b;
+      --fear: #b07cff;
+      --dis: #5fd6c2;
+      --sur: #ffd166;
+      --shadow-1: 0 20px 60px -20px rgba(0, 0, 0, 0.6);
+      --shadow-2: 0 8px 30px -10px rgba(80, 70, 200, 0.45);
+      --radius: 18px;
+      --radius-sm: 12px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; }
+    body {
+      font-family: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(1200px 800px at 15% -10%, rgba(124, 92, 255, 0.18), transparent 60%),
+        radial-gradient(1000px 700px at 95% 10%, rgba(25, 227, 193, 0.10), transparent 60%),
+        radial-gradient(900px 700px at 50% 110%, rgba(79, 125, 255, 0.18), transparent 60%),
+        linear-gradient(180deg, var(--bg-0) 0%, var(--bg-1) 60%, var(--bg-2) 100%);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+    body::before {
+      /* subtle starfield */
+      content: "";
+      position: fixed;
+      inset: 0;
+      background-image:
+        radial-gradient(1px 1px at 20% 30%, rgba(255, 255, 255, 0.6), transparent 50%),
+        radial-gradient(1px 1px at 80% 60%, rgba(255, 255, 255, 0.5), transparent 50%),
+        radial-gradient(1px 1px at 35% 80%, rgba(255, 255, 255, 0.45), transparent 50%),
+        radial-gradient(1px 1px at 65% 20%, rgba(255, 255, 255, 0.5), transparent 50%),
+        radial-gradient(1.5px 1.5px at 50% 50%, rgba(255, 255, 255, 0.4), transparent 50%);
+      opacity: 0.35;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* =========================================================
+       App shell
+       ========================================================= */
+    .app {
+      position: relative;
+      z-index: 1;
+      max-width: 1280px;
+      margin: 0 auto;
+      padding: 28px 24px 64px;
+    }
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 22px;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .brand .logo {
+      width: 42px;
+      height: 42px;
+      border-radius: 12px;
+      background: conic-gradient(from 220deg, var(--accent), var(--accent-2), var(--accent-3), var(--accent));
+      display: grid;
+      place-items: center;
+      font-size: 22px;
+      box-shadow: var(--shadow-2);
+      position: relative;
+    }
+    .brand .logo::after {
+      content: "";
+      position: absolute;
+      inset: 3px;
+      border-radius: 10px;
+      background: var(--bg-1);
+    }
+    .brand .logo span { position: relative; z-index: 1; }
+    .brand .title { font-weight: 700; font-size: 1.05rem; letter-spacing: 0.2px; }
+    .brand .subtitle { color: var(--text-dim); font-size: 0.8rem; }
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 12px;
+      border: 1px solid var(--stroke);
+      background: var(--panel);
+      color: var(--text-dim);
+      border-radius: 999px;
+      font-size: 0.78rem;
+      backdrop-filter: blur(10px);
+    }
+    .pill .dot {
+      width: 7px; height: 7px; border-radius: 50%;
+      background: var(--accent-3);
+      box-shadow: 0 0 8px var(--accent-3);
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1.25fr;
+      gap: 22px;
+    }
+    @media (max-width: 980px) {
+      .grid { grid-template-columns: 1fr; }
+    }
+
+    .panel {
+      position: relative;
+      background: linear-gradient(180deg, var(--panel), var(--panel-2));
+      border: 1px solid var(--stroke);
+      border-radius: var(--radius);
+      backdrop-filter: blur(14px);
+      box-shadow: var(--shadow-1);
+      overflow: hidden;
+    }
+    .panel::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      pointer-events: none;
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.04), transparent 25%);
+    }
+    .panel-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 18px 22px 12px;
+    }
+    .panel-head h2 {
+      font-size: 0.95rem;
+      font-weight: 600;
+      letter-spacing: 0.4px;
+      text-transform: uppercase;
+      color: var(--text-dim);
+    }
+    .panel-body { padding: 8px 22px 22px; }
+
+    /* =========================================================
+       Left panel — input
+       ========================================================= */
+    .greeting {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 0.85rem;
+      color: var(--text-dim);
+      margin: 4px 0 14px;
+    }
+    .greeting strong { color: var(--text); font-weight: 600; }
+
+    .input-card {
+      position: relative;
+      background: rgba(8, 12, 36, 0.6);
+      border: 1px solid var(--stroke);
+      border-radius: var(--radius-sm);
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    .input-card:focus-within {
+      border-color: var(--stroke-strong);
+      box-shadow: 0 0 0 4px rgba(124, 92, 255, 0.12);
+    }
+    .input-card textarea {
+      width: 100%;
+      min-height: 170px;
+      padding: 16px 16px 6px;
+      background: transparent;
+      color: var(--text);
+      border: 0;
+      outline: 0;
+      resize: vertical;
+      font: 400 1rem/1.55 "Inter", system-ui, sans-serif;
+    }
+    .input-card textarea::placeholder { color: var(--text-mute); }
+    .emoji-btn {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      width: 32px;
+      height: 32px;
+      display: grid;
+      place-items: center;
+      border-radius: 9px;
+      border: 1px solid var(--stroke);
+      background: rgba(255, 255, 255, 0.04);
+      cursor: pointer;
+      font-size: 15px;
+      transition: background 0.15s, border-color 0.15s, transform 0.15s;
+    }
+    .emoji-btn:hover {
+      background: rgba(124, 92, 255, 0.14);
+      border-color: var(--stroke-strong);
+      transform: translateY(-1px);
+    }
+    .emoji-popup {
+      display: none;
+      position: absolute;
+      top: 48px;
+      right: 10px;
+      z-index: 20;
+      width: 268px;
+      max-height: 260px;
+      overflow-y: auto;
+      padding: 12px;
+      border-radius: var(--radius-sm);
+      background: linear-gradient(180deg, rgba(18, 22, 56, 0.98), rgba(14, 17, 46, 0.98));
+      border: 1px solid var(--stroke-strong);
+      box-shadow: var(--shadow-1);
+      backdrop-filter: blur(16px);
+    }
+    .emoji-popup.show { display: block; animation: slide 0.15s ease both; }
+    .emoji-popup .grp-label {
+      font-size: 0.68rem;
+      font-weight: 600;
+      letter-spacing: 0.4px;
+      text-transform: uppercase;
+      color: var(--text-mute);
+      margin: 8px 2px 6px;
+    }
+    .emoji-popup .grp-label:first-child { margin-top: 0; }
+    .emoji-popup .grid-emo {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 2px;
+    }
+    .emoji-popup button.emo-item {
+      width: 32px;
+      height: 32px;
+      display: grid;
+      place-items: center;
+      font-size: 18px;
+      border-radius: 8px;
+      border: 0;
+      background: transparent;
+      cursor: pointer;
+      transition: background 0.12s, transform 0.1s;
+    }
+    .emoji-popup button.emo-item:hover {
+      background: rgba(124, 92, 255, 0.18);
+      transform: scale(1.15);
+    }
+    .input-foot {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 6px 10px 10px;
+      color: var(--text-mute);
+      font-size: 0.78rem;
+    }
+    .input-foot kbd {
+      font-family: "JetBrains Mono", monospace;
+      font-size: 0.72rem;
+      padding: 2px 6px;
+      border-radius: 6px;
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid var(--stroke);
+      color: var(--text-dim);
+    }
+
+    .actions {
+      display: flex;
+      gap: 10px;
+      margin-top: 14px;
+    }
+    .btn {
+      flex: 1;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      padding: 14px 18px;
+      border-radius: 14px;
+      border: 0;
+      cursor: pointer;
+      font: 600 0.95rem/1 "Inter", system-ui, sans-serif;
+      letter-spacing: 0.2px;
+      color: white;
+      background:
+        linear-gradient(135deg, #7c5cff 0%, #4f7dff 50%, #19e3c1 130%);
+      background-size: 200% 200%;
+      box-shadow: 0 14px 30px -10px rgba(124, 92, 255, 0.6), inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+      transition: transform 0.15s ease, background-position 0.6s ease, box-shadow 0.2s ease;
+      position: relative;
+      overflow: hidden;
+    }
+    .btn:hover { background-position: 100% 0; transform: translateY(-1px); }
+    .btn:active { transform: translateY(0); }
+    .btn::after {
+      /* glow */
+      content: "";
+      position: absolute;
+      inset: -2px;
+      border-radius: inherit;
+      background: linear-gradient(135deg, rgba(124, 92, 255, 0.6), rgba(25, 227, 193, 0.4));
+      filter: blur(14px);
+      opacity: 0.35;
+      z-index: -1;
+      transition: opacity 0.3s;
+    }
+    .btn:hover::after { opacity: 0.55; }
+    .btn:disabled { opacity: 0.65; cursor: progress; }
+    .btn-ghost {
+      background: transparent;
+      border: 1px solid var(--stroke);
+      color: var(--text-dim);
+      flex: 0 0 auto;
+      box-shadow: none;
+    }
+    .btn-ghost::after { display: none; }
+    .spinner {
+      width: 16px; height: 16px;
+      border-radius: 50%;
+      border: 2px solid rgba(255, 255, 255, 0.35);
+      border-top-color: white;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .examples {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 16px;
+    }
+    .chip {
+      font-size: 0.78rem;
+      padding: 7px 12px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid var(--stroke);
+      color: var(--text-dim);
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s, border-color 0.15s;
+    }
+    .chip:hover {
+      background: rgba(124, 92, 255, 0.12);
+      color: var(--text);
+      border-color: var(--stroke-strong);
+    }
+
+    .toast {
+      display: none;
+      margin-top: 12px;
+      padding: 12px 14px;
+      border-radius: 12px;
+      background: rgba(255, 107, 107, 0.10);
+      border: 1px solid rgba(255, 107, 107, 0.35);
+      color: #ffbcbc;
+      font-size: 0.88rem;
+    }
+    .toast.show { display: block; animation: slide 0.25s ease both; }
+    @keyframes slide { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+    /* =========================================================
+       Wellbeing chat companion
+       ========================================================= */
+    .wellbeing {
+      display: none;
+      margin-top: 22px;
+    }
+    .wellbeing.show { display: block; animation: slide 0.25s ease both; }
+    .wellbeing-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 18px 22px 10px;
+      flex-wrap: wrap;
+    }
+    .wellbeing-head h2 {
+      font-size: 0.95rem;
+      font-weight: 600;
+      letter-spacing: 0.4px;
+      text-transform: uppercase;
+      color: var(--text-dim);
+    }
+    .wellbeing-disclaimer {
+      margin: 0 22px 14px;
+      padding: 10px 14px;
+      border-radius: 12px;
+      background: rgba(126, 138, 255, 0.08);
+      border: 1px solid var(--stroke);
+      color: var(--text-mute);
+      font-size: 0.76rem;
+      line-height: 1.5;
+    }
+    .crisis-banner {
+      display: none;
+      margin: 0 22px 14px;
+      padding: 14px 16px;
+      border-radius: 12px;
+      background: rgba(255, 107, 107, 0.12);
+      border: 1px solid rgba(255, 107, 107, 0.45);
+      color: #ffd9d9;
+      font-size: 0.85rem;
+      line-height: 1.6;
+    }
+    .crisis-banner.show { display: block; animation: slide 0.2s ease both; }
+    .crisis-banner strong { color: #fff; }
+    .crisis-banner ul { margin: 6px 0 0 18px; padding: 0; }
+    .chat-log {
+      margin: 0 22px;
+      max-height: 360px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      padding-right: 4px;
+    }
+    .chat-msg {
+      max-width: 82%;
+      padding: 10px 14px;
+      border-radius: 14px;
+      font-size: 0.88rem;
+      line-height: 1.5;
+      white-space: pre-wrap;
+    }
+    .chat-msg.user {
+      align-self: flex-end;
+      background: linear-gradient(135deg, rgba(124, 92, 255, 0.35), rgba(79, 125, 255, 0.35));
+      border: 1px solid var(--stroke-strong);
+      color: var(--text);
+      border-bottom-right-radius: 4px;
+    }
+    .chat-msg.assistant {
+      align-self: flex-start;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--stroke);
+      color: var(--text);
+      border-bottom-left-radius: 4px;
+    }
+    .chat-msg.assistant .who {
+      display: block;
+      font-size: 0.68rem;
+      font-weight: 600;
+      letter-spacing: 0.3px;
+      text-transform: uppercase;
+      color: var(--accent-3);
+      margin-bottom: 4px;
+    }
+    .chat-typing {
+      align-self: flex-start;
+      display: none;
+      gap: 4px;
+      padding: 10px 14px;
+    }
+    .chat-typing.show { display: flex; }
+    .chat-typing span {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: var(--text-mute);
+      animation: bounce 1.2s infinite ease-in-out;
+    }
+    .chat-typing span:nth-child(2) { animation-delay: 0.15s; }
+    .chat-typing span:nth-child(3) { animation-delay: 0.3s; }
+    @keyframes bounce { 0%, 60%, 100% { transform: translateY(0); opacity: 0.4; } 30% { transform: translateY(-4px); opacity: 1; } }
+    .chat-input-row {
+      display: flex;
+      gap: 10px;
+      padding: 16px 22px 8px;
+    }
+    .chat-input-row input {
+      flex: 1;
+      padding: 12px 14px;
+      border-radius: 12px;
+      border: 1px solid var(--stroke);
+      background: rgba(8, 12, 36, 0.6);
+      color: var(--text);
+      font: 400 0.9rem/1.4 "Inter", system-ui, sans-serif;
+      outline: 0;
+    }
+    .chat-input-row input:focus { border-color: var(--stroke-strong); }
+    .chat-input-row button.send {
+      flex: 0 0 auto;
+      padding: 12px 18px;
+      border-radius: 12px;
+      border: 0;
+      cursor: pointer;
+      color: white;
+      font-weight: 600;
+      font-size: 0.85rem;
+      background: linear-gradient(135deg, #7c5cff, #4f7dff);
+    }
+    .chat-input-row button.send:disabled { opacity: 0.5; cursor: progress; }
+    .chat-foot {
+      display: flex;
+      justify-content: flex-end;
+      padding: 8px 22px 22px;
+    }
+    .chat-foot button.end-session {
+      position: relative;
+      isolation: isolate;
+      overflow: hidden;
+      padding: 11px 20px;
+      border-radius: 12px;
+      border: 1px solid rgba(255, 110, 110, 0.55);
+      background: linear-gradient(135deg, #ff5d5d 0%, #e02424 55%, #9b1c1c 100%);
+      color: #ffffff;
+      font-size: 0.82rem;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      cursor: pointer;
+      box-shadow:
+        0 10px 24px -8px rgba(224, 36, 36, 0.55),
+        inset 0 1px 0 rgba(255, 255, 255, 0.22),
+        inset 0 -1px 0 rgba(0, 0, 0, 0.25);
+      transition:
+        transform 0.15s ease,
+        box-shadow 0.2s ease,
+        border-color 0.2s ease,
+        filter 0.2s ease;
+    }
+    .chat-foot button.end-session::before {
+      /* diagonal sheen that sweeps on hover */
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(
+        115deg,
+        transparent 30%,
+        rgba(255, 255, 255, 0.22) 50%,
+        transparent 70%
+      );
+      transform: translateX(-120%);
+      transition: transform 0.6s ease;
+      pointer-events: none;
+      z-index: 0;
+    }
+    .chat-foot button.end-session::after {
+      /* soft red breathing glow */
+      content: "";
+      position: absolute;
+      inset: -2px;
+      border-radius: inherit;
+      background: radial-gradient(60% 100% at 50% 50%, rgba(255, 80, 80, 0.55), transparent 70%);
+      filter: blur(10px);
+      opacity: 0.55;
+      z-index: -1;
+      animation: endGlow 2.4s ease-in-out infinite;
+    }
+    .chat-foot button.end-session > * { position: relative; z-index: 1; }
+    .chat-foot button.end-session .icon {
+      display: inline-block;
+      margin-right: 6px;
+      filter: drop-shadow(0 0 4px rgba(255, 255, 255, 0.5));
+      animation: endFlag 1.8s ease-in-out infinite;
+    }
+    @keyframes endGlow {
+      0%, 100% { opacity: 0.45; }
+      50%      { opacity: 0.75; }
+    }
+    @keyframes endFlag {
+      0%, 100% { transform: scale(1) rotate(0deg); }
+      50%      { transform: scale(1.14) rotate(-8deg); }
+    }
+    .chat-foot button.end-session:hover {
+      transform: translateY(-1px);
+      border-color: rgba(255, 150, 150, 0.85);
+      filter: brightness(1.06);
+      box-shadow:
+        0 16px 34px -8px rgba(224, 36, 36, 0.75),
+        0 0 0 4px rgba(239, 68, 68, 0.14),
+        inset 0 1px 0 rgba(255, 255, 255, 0.28),
+        inset 0 -1px 0 rgba(0, 0, 0, 0.22);
+    }
+    .chat-foot button.end-session:hover::before { transform: translateX(120%); }
+    .chat-foot button.end-session:active {
+      transform: translateY(0);
+      box-shadow:
+        0 6px 16px -6px rgba(224, 36, 36, 0.6),
+        inset 0 1px 0 rgba(255, 255, 255, 0.18);
+    }
+    .chat-foot button.end-session:focus-visible {
+      outline: none;
+      box-shadow:
+        0 10px 24px -8px rgba(224, 36, 36, 0.55),
+        0 0 0 3px rgba(239, 68, 68, 0.45),
+        inset 0 1px 0 rgba(255, 255, 255, 0.22);
+    }
+    .chat-foot button.end-session:disabled {
+      cursor: progress;
+      background: linear-gradient(135deg, #5a1a1a, #3b0f0f);
+      border-color: rgba(255, 110, 110, 0.25);
+      color: rgba(255, 255, 255, 0.6);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1);
+      filter: none;
+    }
+    .chat-foot button.end-session:disabled::after { display: none; }
+    .chat-foot button.end-session:disabled .icon { animation: none; }
+    .session-summary {
+      display: none;
+      margin: 0 22px 22px;
+      padding: 16px 18px;
+      border-radius: 14px;
+      background: linear-gradient(180deg, rgba(25, 227, 193, 0.08), rgba(124, 92, 255, 0.06));
+      border: 1px solid var(--stroke-strong);
+    }
+    .session-summary.show { display: block; animation: slide 0.2s ease both; }
+    .session-summary h3 {
+      font-size: 0.82rem;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+      color: var(--accent-3);
+      margin-bottom: 10px;
+    }
+    .session-summary ul { margin: 0; padding-left: 20px; color: var(--text); font-size: 0.88rem; line-height: 1.7; }
+
+    /* =========================================================
+       Right panel — analysis dashboard
+       ========================================================= */
+    .status-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 0 22px 8px;
+      color: var(--text-dim);
+      font-size: 0.82rem;
+    }
+    .status-row .lead { color: var(--text); font-weight: 500; }
+    .status-row .accent { color: var(--accent-3); }
+
+    .empty {
+      padding: 36px 12px 12px;
+      text-align: center;
+      color: var(--text-mute);
+    }
+    .empty .emoji { font-size: 48px; display: block; margin-bottom: 8px; }
+    .empty p { font-size: 0.92rem; }
+
+    .results { display: none; }
+    .results.show { display: block; animation: fade 0.35s ease both; }
+    @keyframes fade { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+
+    .header-line {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 8px;
+      padding: 6px 0 4px;
+    }
+    .header-line h1 {
+      font-size: 1.25rem;
+      font-weight: 700;
+      letter-spacing: 0.1px;
+    }
+    .header-line .lang {
+      font-size: 0.78rem;
+      color: var(--text-dim);
+    }
+    .header-line .lang .flag {
+      display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+      background: var(--accent-3); box-shadow: 0 0 6px var(--accent-3);
+      margin-right: 6px; vertical-align: middle;
+    }
+
+    .summary {
+      color: var(--text);
+      font-size: 0.95rem;
+      line-height: 1.55;
+      padding: 10px 12px;
+      margin: 6px 0 14px;
+      border-radius: 12px;
+      background: rgba(124, 92, 255, 0.10);
+      border: 1px solid rgba(124, 92, 255, 0.25);
+    }
+    .summary .emo {
+      display: inline-block;
+      padding: 1px 8px;
+      border-radius: 6px;
+      font-weight: 600;
+      font-size: 0.85rem;
+      background: rgba(255, 255, 255, 0.06);
+      margin: 0 2px;
+    }
+
+    .dash-grid {
+      display: grid;
+      grid-template-columns: 1.1fr 1fr;
+      gap: 16px;
+    }
+    @media (max-width: 1100px) {
+      .dash-grid { grid-template-columns: 1fr; }
+    }
+
+    .card {
+      background: rgba(8, 12, 36, 0.55);
+      border: 1px solid var(--stroke);
+      border-radius: 14px;
+      padding: 14px 16px 18px;
+      position: relative;
+    }
+    .card h3 {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      color: var(--text-dim);
+      font-weight: 600;
+      margin-bottom: 10px;
+    }
+
+    /* --- Sentiment arc (semi-circular gauge) --- */
+    .gauge-wrap {
+      position: relative;
+      display: grid;
+      place-items: center;
+      padding: 6px 0 4px;
+    }
+    .gauge-svg { width: 100%; max-width: 280px; height: auto; display: block; }
+    .gauge-value {
+      position: absolute;
+      top: 60%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      text-align: center;
+    }
+    .gauge-value .pct {
+      font-size: 2.1rem;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      background: linear-gradient(180deg, #fff, #b9c2ff);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+    }
+    .gauge-value .lab {
+      font-size: 0.72rem;
+      letter-spacing: 1.2px;
+      text-transform: uppercase;
+      color: var(--text-dim);
+    }
+    .gauge-legend {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.7rem;
+      color: var(--text-dim);
+      margin-top: 6px;
+      padding: 0 6px;
+    }
+    .gauge-legend .l-neg { color: var(--neg); }
+    .gauge-legend .l-neu { color: var(--neu); }
+    .gauge-legend .l-pos { color: var(--pos); }
+
+    /* --- Emotion distribution bars --- */
+    .bars { display: flex; flex-direction: column; gap: 10px; }
+    .bar-row {
+      display: grid;
+      grid-template-columns: 86px 1fr 56px;
+      align-items: center;
+      gap: 10px;
+      font-size: 0.84rem;
+    }
+    .bar-row .lbl { color: var(--text-dim); }
+    .bar-row .val { text-align: right; color: var(--text); font-variant-numeric: tabular-nums; font-weight: 600; }
+    .bar-row .track {
+      position: relative;
+      height: 10px;
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 999px;
+      overflow: hidden;
+    }
+    .bar-row .fill {
+      position: absolute;
+      inset: 0 auto 0 0;
+      width: 0%;
+      border-radius: 999px;
+      background: linear-gradient(90deg, var(--accent-2), var(--accent));
+      box-shadow: 0 0 12px rgba(124, 92, 255, 0.5);
+      transition: width 0.9s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    .bar-row[data-emo="joy"] .fill { background: linear-gradient(90deg, #ff8a3d, var(--joy)); box-shadow: 0 0 12px rgba(255, 184, 77, 0.45); }
+    .bar-row[data-emo="sadness"] .fill { background: linear-gradient(90deg, #4f7dff, var(--sad)); box-shadow: 0 0 12px rgba(108, 139, 255, 0.45); }
+    .bar-row[data-emo="anger"] .fill { background: linear-gradient(90deg, #ff4757, var(--ang)); box-shadow: 0 0 12px rgba(255, 107, 107, 0.45); }
+    .bar-row[data-emo="fear"] .fill { background: linear-gradient(90deg, #8a5cff, var(--fear)); box-shadow: 0 0 12px rgba(176, 124, 255, 0.45); }
+    .bar-row[data-emo="disgust"] .fill { background: linear-gradient(90deg, #2bbfa6, var(--dis)); box-shadow: 0 0 12px rgba(95, 214, 194, 0.45); }
+    .bar-row[data-emo="surprise"] .fill { background: linear-gradient(90deg, #f0b400, var(--sur)); box-shadow: 0 0 12px rgba(255, 209, 102, 0.45); }
+
+    /* --- Confidence line graph (canvas) --- */
+    .graph-wrap {
+      position: relative;
+      width: 100%;
+      height: 160px;
+    }
+    .graph-wrap canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+    .graph-readout {
+      position: absolute;
+      top: 8px; right: 10px;
+      font: 600 0.95rem/1 "Inter";
+      color: var(--text);
+      background: rgba(8, 12, 36, 0.6);
+      border: 1px solid var(--stroke);
+      padding: 6px 10px;
+      border-radius: 10px;
+    }
+    .graph-readout small { color: var(--text-dim); font-weight: 500; }
+
+    /* --- Meta footer --- */
+    .meta {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 8px;
+      padding: 12px 4px 4px;
+      color: var(--text-mute);
+      font-size: 0.78rem;
+    }
+    .meta .kv { color: var(--text-dim); }
+    .meta .kv b { color: var(--text); font-weight: 600; }
+
+    /* tooltip */
+    .tip {
+      position: absolute;
+      pointer-events: none;
+      padding: 6px 10px;
+      background: rgba(8, 12, 36, 0.95);
+      border: 1px solid var(--stroke-strong);
+      color: var(--text);
+      border-radius: 8px;
+      font-size: 0.78rem;
+      transform: translate(-50%, -120%);
+      white-space: nowrap;
+      opacity: 0;
+      transition: opacity 0.15s;
+    }
+    .tip.show { opacity: 1; }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <!-- Top bar -->
+    <header class="topbar">
+      <div class="brand">
+        <div class="logo"><span>🎭</span></div>
+        <div>
+          <div class="title">Emotion Detector</div>
+          <div class="subtitle">Multilingual AI · Sentiment &amp; Emotion Analysis</div>
+        </div>
+      </div>
+      <div class="pill"><span class="dot"></span> <span id="status-text">Ready · 1000+ languages</span></div>
+    </header>
+
+    <div class="grid">
+      <!-- ===================== LEFT: INPUT ===================== -->
+      <section class="panel" aria-label="Input">
+        <div class="panel-head">
+          <h2>Your text</h2>
+          <span class="pill" style="font-size:0.72rem">⌘ + ↵</span>
+        </div>
+        <div class="panel-body">
+          <div class="greeting" id="greeting">
+            <span>👋</span>
+            <span><strong id="greeting-text">Hello!</strong> Type or paste any text in any language.</span>
+          </div>
+
+          <div class="input-card">
+            <textarea
+              id="textToAnalyse"
+              placeholder="e.g. i want my ex back  ·  μου λείπει ο/η πρώην μου  ·  私は元恋人が戻ってきてほしい"
+              spellcheck="false"
+            ></textarea>
+            <button type="button" class="emoji-btn" id="emojiBtn" title="Insert emoji" aria-haspopup="true">😊</button>
+            <div class="emoji-popup" id="emojiPopup"></div>
+            <div class="input-foot">
+              <span><span id="char-count">0</span> chars</span>
+              <span>Press <kbd>Ctrl</kbd>+<kbd>Enter</kbd> to analyze</span>
+            </div>
+          </div>
+
+          <div class="actions">
+            <button class="btn" id="analyzeBtn" onclick="analyzeEmotion()">
+              <span id="btn-label">✨ Analyze Emotion</span>
+            </button>
+            <button class="btn btn-ghost" onclick="clearAll()" title="Clear">⟲</button>
+          </div>
+
+          <div class="examples" id="examples">
+            <span class="chip" data-text="i want my ex back">i want my ex back</span>
+            <span class="chip" data-text="μου λείπει ο/η πρώην μου">μου λείπει ο/η πρώην μου</span>
+            <span class="chip" data-text="I just got promoted today!">I just got promoted!</span>
+            <span class="chip" data-text="Estoy muy enojado contigo">Estoy muy enojado</span>
+            <span class="chip" data-text="今日とても嬉しいです">今日とても嬉しいです</span>
+            <span class="chip" data-text="This is the worst day ever">Worst day ever</span>
+          </div>
+
+          <div class="toast" id="toast"></div>
+        </div>
+      </section>
+
+      <!-- ===================== RIGHT: ANALYSIS ===================== -->
+      <section class="panel" aria-label="Analysis">
+        <div class="panel-head">
+          <h2>Analysis</h2>
+          <span class="pill" id="elapsedPill" style="font-size:0.72rem; display:none">
+            ⏱ Analysed in <b id="elapsedText" style="margin-left:4px; color:var(--text)">—</b>
+          </span>
+        </div>
+
+        <div class="status-row">
+          <span><span class="lead">Multilingual Analysis</span> · powered by on-device lexicon + optional Watson NLP</span>
+        </div>
+
+        <div class="panel-body">
+          <!-- Empty state -->
+          <div class="empty" id="emptyState">
+            <span class="emoji">🎭</span>
+            <p>Submit some text on the left and a beautiful analysis will appear here.</p>
+          </div>
+
+          <!-- Results -->
+          <div class="results" id="results">
+            <div class="header-line">
+              <h1 id="titleLine">Analysis Complete</h1>
+              <div class="lang"><span class="flag"></span><span id="langLabel">Detected: English</span></div>
+            </div>
+
+            <div class="summary" id="summary"></div>
+
+            <div class="dash-grid">
+              <!-- Sentiment Arc -->
+              <div class="card">
+                <h3>Sentiment Score</h3>
+                <div class="gauge-wrap">
+                  <svg class="gauge-svg" viewBox="0 0 200 120" aria-label="Sentiment arc">
+                    <defs>
+                      <linearGradient id="gArc" x1="0" x2="1">
+                        <stop offset="0%" stop-color="#ff6b6b" />
+                        <stop offset="50%" stop-color="#ffd166" />
+                        <stop offset="100%" stop-color="#27e0a4" />
+                      </linearGradient>
+                      <linearGradient id="gArcBg" x1="0" x2="1">
+                        <stop offset="0%" stop-color="rgba(255,107,107,0.10)" />
+                        <stop offset="50%" stop-color="rgba(255,209,102,0.10)" />
+                        <stop offset="100%" stop-color="rgba(39,224,164,0.10)" />
+                      </linearGradient>
+                    </defs>
+                    <!-- background arc -->
+                    <path d="M 20 110 A 80 80 0 0 1 180 110"
+                          fill="none" stroke="url(#gArcBg)" stroke-width="16" stroke-linecap="round" />
+                    <!-- foreground arc (animated by JS) -->
+                    <path id="gArcFg" d="M 20 110 A 80 80 0 0 1 180 110"
+                          fill="none" stroke="url(#gArc)" stroke-width="16" stroke-linecap="round"
+                          stroke-dasharray="251.327" stroke-dashoffset="251.327"
+                          style="filter: drop-shadow(0 0 6px rgba(124,92,255,0.45));" />
+                    <!-- needle -->
+                    <g id="gNeedle" transform="translate(100,110)">
+                      <line x1="0" y1="0" x2="0" y2="-72" stroke="#e7ecff" stroke-width="2.5" stroke-linecap="round" />
+                      <circle cx="0" cy="0" r="5" fill="#e7ecff" />
+                    </g>
+                  </svg>
+                  <div class="gauge-value">
+                    <div class="pct" id="gaugePct">50%</div>
+                    <div class="lab" id="gaugeLab">Positivity</div>
+                  </div>
+                </div>
+                <div class="gauge-legend">
+                  <span class="l-neg">◀ Negative</span>
+                  <span class="l-neu">Neutral</span>
+                  <span class="l-pos">Positive ▶</span>
+                </div>
+              </div>
+
+              <!-- Emotion Distribution -->
+              <div class="card">
+                <h3>Emotion Distribution</h3>
+                <div class="bars" id="bars">
+                  <div class="bar-row" data-emo="joy"><span class="lbl">Joy</span><div class="track"><div class="fill"></div></div><span class="val">0%</span></div>
+                  <div class="bar-row" data-emo="sadness"><span class="lbl">Sadness</span><div class="track"><div class="fill"></div></div><span class="val">0%</span></div>
+                  <div class="bar-row" data-emo="anger"><span class="lbl">Anger</span><div class="track"><div class="fill"></div></div><span class="val">0%</span></div>
+                  <div class="bar-row" data-emo="fear"><span class="lbl">Fear</span><div class="track"><div class="fill"></div></div><span class="val">0%</span></div>
+                  <div class="bar-row" data-emo="disgust"><span class="lbl">Disgust</span><div class="track"><div class="fill"></div></div><span class="val">0%</span></div>
+                  <div class="bar-row" data-emo="surprise"><span class="lbl">Surprise</span><div class="track"><div class="fill"></div></div><span class="val">0%</span></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Confidence graph -->
+            <div class="card" style="margin-top:16px">
+              <h3>Confidence over analysis</h3>
+              <div class="graph-wrap">
+                <canvas id="confGraph"></canvas>
+                <div class="graph-readout"><span id="confPct">0%</span> <small>confidence</small></div>
+              </div>
+            </div>
+
+            <div class="meta">
+              <span class="kv">Words: <b id="metaWords">0</b></span>
+              <span class="kv">Model: <b>Lexicon v1 · Multilingual</b></span>
+              <span class="kv">Language: <b id="metaLang">—</b></span>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <!-- ===================== WELLBEING CHAT COMPANION ===================== -->
+    <section class="panel wellbeing" id="wellbeingSection" aria-label="Wellbeing companion">
+      <div class="wellbeing-head">
+        <h2>💬 AI Wellbeing Companion</h2>
+        <span class="pill" style="font-size:0.7rem">Not a substitute for professional care</span>
+      </div>
+      <div class="wellbeing-disclaimer">
+        This is an AI companion for a supportive conversation — it is <strong>not</strong> a licensed
+        psychologist or therapist and can't diagnose anything. If things feel serious or urgent,
+        please reach out to a mental health professional or local emergency services.
+      </div>
+      <div class="crisis-banner" id="crisisBanner"></div>
+      <div class="chat-log" id="chatLog"></div>
+      <div class="chat-typing" id="chatTyping"><span></span><span></span><span></span></div>
+      <div class="chat-input-row">
+        <input id="chatInput" type="text" placeholder="Type your reply…" autocomplete="off" />
+        <button class="send" id="chatSendBtn">Send</button>
+      </div>
+      <div class="session-summary" id="sessionSummary">
+        <h3>🏁 Session summary</h3>
+        <ul id="sessionSummaryList"></ul>
+      </div>
+      <div class="chat-foot">
+        <button class="end-session" id="endSessionBtn"><span class="icon"></span>End Session</button>
+      </div>
+    </section>
+  </div>
+
+  <div class="tip" id="tip"></div>
+
+  <script>
+    /* =========================================================
+       State
+       ========================================================= */
+    const EMOTION_ICONS = {
+      joy: "😊", sadness: "😢", anger: "😠", fear: "😨",
+      disgust: "🤢", surprise: "😲", neutral: "😐"
+    };
+
+    // Mirrors EMOJI_EMOTIONS in EmotionDetection/emotion_detection.py, so
+    // every emoji offered here is one the backend actually recognizes as
+    // a strong signal for that emotion.
+    const EMOJI_GROUPS = [
+      { label: "Joy", key: "joy", items: ["😀", "😃", "😄", "😁", "😊", "🙂", "😍", "🥰", "🥳", "❤️", "💕", "🎉", "👍", "😂", "🤣"] },
+      { label: "Sadness", key: "sadness", items: ["😢", "😭", "😔", "☹️", "😞", "💔", "😥", "🙁"] },
+      { label: "Anger", key: "anger", items: ["😡", "😠", "🤬", "👿", "😤"] },
+      { label: "Fear", key: "fear", items: ["😨", "😱", "😰", "😟", "😧"] },
+      { label: "Disgust", key: "disgust", items: ["🤢", "🤮", "😖", "🤧"] },
+      { label: "Surprise", key: "surprise", items: ["😲", "😮", "😳", "🤯", "😯"] },
+    ];
+
+    /* =========================================================
+       Element refs
+       ========================================================= */
+    const $ = (id) => document.getElementById(id);
+    const textEl = $("textToAnalyse");
+    const charCount = $("char-count");
+    const emptyState = $("emptyState");
+    const results = $("results");
+    const bars = $("bars");
+    const gaugePct = $("gaugePct");
+    const gaugeLab = $("gaugeLab");
+    const gArcFg = $("gArcFg");
+    const gNeedle = $("gNeedle");
+    const confPct = $("confPct");
+    const confGraph = $("confGraph");
+    const elapsedPill = $("elapsedPill");
+    const elapsedText = $("elapsedText");
+    const langLabel = $("langLabel");
+    const titleLine = $("titleLine");
+    const summary = $("summary");
+    const metaLang = $("metaLang");
+    const metaWords = $("metaWords");
+    const statusText = $("statusText") || document.getElementById("status-text");
+    const greetingText = $("greeting-text");
+    const analyzeBtn = $("analyzeBtn");
+    const btnLabel = $("btn-label");
+    const toast = $("toast");
+    const tip = $("tip");
+    const emojiBtn = $("emojiBtn");
+    const emojiPopup = $("emojiPopup");
+    const wellbeingSection = $("wellbeingSection");
+    const crisisBanner = $("crisisBanner");
+    const chatLog = $("chatLog");
+    const chatTyping = $("chatTyping");
+    const chatInput = $("chatInput");
+    const chatSendBtn = $("chatSendBtn");
+    const endSessionBtn = $("endSessionBtn");
+    const sessionSummary = $("sessionSummary");
+    const sessionSummaryList = $("sessionSummaryList");
+
+    textEl.addEventListener("input", () => { charCount.textContent = textEl.value.length; });
+    textEl.addEventListener("keydown", (e) => {
+      if (e.ctrlKey && e.key === "Enter") { e.preventDefault(); analyzeEmotion(); }
+    });
+    document.querySelectorAll(".chip").forEach((c) => {
+      c.addEventListener("click", () => {
+        textEl.value = c.dataset.text;
+        textEl.dispatchEvent(new Event("input"));
+        analyzeEmotion();
+      });
+    });
+
+    /* =========================================================
+       Emoji picker
+       ========================================================= */
+    (function buildEmojiPopup() {
+      EMOJI_GROUPS.forEach((group) => {
+        const label = document.createElement("div");
+        label.className = "grp-label";
+        label.textContent = group.label;
+        emojiPopup.appendChild(label);
+
+        const grid = document.createElement("div");
+        grid.className = "grid-emo";
+        group.items.forEach((emoji) => {
+          const b = document.createElement("button");
+          b.type = "button";
+          b.className = "emo-item";
+          b.textContent = emoji;
+          b.title = `${emoji}  ·  ${group.label}`;
+          b.addEventListener("click", () => insertEmoji(emoji));
+          grid.appendChild(b);
+        });
+        emojiPopup.appendChild(grid);
+      });
+    })();
+
+    function insertEmoji(emoji) {
+      const start = textEl.selectionStart ?? textEl.value.length;
+      const end = textEl.selectionEnd ?? textEl.value.length;
+      const before = textEl.value.slice(0, start);
+      const after = textEl.value.slice(end);
+      textEl.value = before + emoji + after;
+      const caret = start + emoji.length;
+      textEl.focus();
+      textEl.setSelectionRange(caret, caret);
+      textEl.dispatchEvent(new Event("input"));
+    }
+
+    emojiBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      emojiPopup.classList.toggle("show");
+    });
+    document.addEventListener("click", (e) => {
+      if (!emojiPopup.contains(e.target) && e.target !== emojiBtn) {
+        emojiPopup.classList.remove("show");
+      }
+    });
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") emojiPopup.classList.remove("show");
+    });
+
+    /* =========================================================
+       Wellbeing chat companion
+       ========================================================= */
+    let chatHistory = [];        // [{role: "user"|"assistant", content: "..."}]
+    let chatLangName = "English";
+    let chatLangCode = "en";
+    let chatPrimaryEmotion = "";
+    let sessionEnded = false;
+
+    const POSITIVE_EMOTIONS = new Set(["joy", "surprise"]);
+
+    function appendChatMsg(role, text) {
+      const div = document.createElement("div");
+      div.className = `chat-msg ${role}`;
+      if (role === "assistant") {
+        const who = document.createElement("span");
+        who.className = "who";
+        who.textContent = "Companion";
+        div.appendChild(who);
+      }
+      const body = document.createElement("span");
+      body.textContent = text;
+      div.appendChild(body);
+      chatLog.appendChild(div);
+      chatLog.scrollTop = chatLog.scrollHeight;
+    }
+
+    function showCrisisBanner(resources) {
+      if (!resources) return;
+      const lines = resources.lines.map((l) => `<li>${l}</li>`).join("");
+      crisisBanner.innerHTML = `<strong>${resources.intro}</strong><ul>${lines}</ul>`;
+      crisisBanner.classList.add("show");
+    }
+
+    function openingLine(langName, emotion) {
+      const isPositive = POSITIVE_EMOTIONS.has(emotion);
+      // A short, warm opener while we wait on the first real model reply
+      // isn't strictly necessary — we ask the backend for the first
+      // message so tone/language always match exactly what it detected.
+      return null;
+    }
+
+    async function startWellbeingChat(langName, langCode, primaryEmotion, analyzedText) {
+      chatHistory = [];
+      chatLangName = langName;
+      chatLangCode = langCode;
+      chatPrimaryEmotion = primaryEmotion;
+      sessionEnded = false;
+      chatLog.innerHTML = "";
+      crisisBanner.classList.remove("show");
+      sessionSummary.classList.remove("show");
+      sessionSummaryList.innerHTML = "";
+      chatInput.value = "";
+      chatInput.disabled = false;
+      chatSendBtn.disabled = false;
+      endSessionBtn.disabled = false;
+      wellbeingSection.classList.add("show");
+
+      const isPositive = POSITIVE_EMOTIONS.has(primaryEmotion);
+      const opener = isPositive
+        ? `The user just wrote: "${analyzedText}" — the analysis detected this as positive (${primaryEmotion}). Open the conversation by warmly congratulating them and celebrating with them specifically, then ask if they'd like to talk more about that or about anything else on their mind.`
+        : `The user just wrote: "${analyzedText}" — the analysis detected this as ${primaryEmotion || "an emotional"} text. Open the conversation with empathy about what they wrote, and one gentle open-ended question.`;
+
+      await sendToCompanion(opener, /*silent=*/ true);
+    }
+
+    async function sendToCompanion(userText, silent) {
+      if (!silent) {
+        appendChatMsg("user", userText);
+        chatHistory.push({ role: "user", content: userText });
+      }
+      chatTyping.classList.add("show");
+      chatInput.disabled = true;
+      chatSendBtn.disabled = true;
+
+      try {
+        const r = await fetch("/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            message: userText,
+            history: silent ? [] : chatHistory.slice(0, -1),
+            language: chatLangName,
+            language_code: chatLangCode,
+            primary_emotion: chatPrimaryEmotion,
+          }),
+        });
+        const data = await r.json();
+        chatTyping.classList.remove("show");
+
+        if (!r.ok || !data.ok) {
+          appendChatMsg("assistant", data.message || "Sorry, I couldn't reach the chat service right now.");
+          return;
+        }
+        appendChatMsg("assistant", data.reply);
+        chatHistory.push({ role: "assistant", content: data.reply });
+        if (data.crisis) showCrisisBanner(data.crisis_resources);
+      } catch (err) {
+        chatTyping.classList.remove("show");
+        appendChatMsg("assistant", `Connection error reaching the chat service (${err.message || err}).`);
+      } finally {
+        if (!sessionEnded) {
+          chatInput.disabled = false;
+          chatSendBtn.disabled = false;
+          chatInput.focus();
+        }
+      }
+    }
+
+    function sendChatMessage() {
+      const text = chatInput.value.trim();
+      if (!text || sessionEnded) return;
+      chatInput.value = "";
+      sendToCompanion(text, false);
+    }
+
+    chatSendBtn.addEventListener("click", sendChatMessage);
+    chatInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") { e.preventDefault(); sendChatMessage(); }
+    });
+
+    endSessionBtn.addEventListener("click", async () => {
+      if (sessionEnded || chatHistory.length === 0) return;
+      sessionEnded = true;
+      chatInput.disabled = true;
+      chatSendBtn.disabled = true;
+      endSessionBtn.disabled = true;
+      chatTyping.classList.add("show");
+      try {
+        const r = await fetch("/chat/end", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ history: chatHistory, language: chatLangName }),
+        });
+        const data = await r.json();
+        chatTyping.classList.remove("show");
+        if (r.ok && data.ok && data.bullets && data.bullets.length) {
+          sessionSummaryList.innerHTML = data.bullets.map((b) => `<li>${b}</li>`).join("");
+          sessionSummary.classList.add("show");
+        } else {
+          showToast(data.message || "Couldn't generate a session summary right now.");
+        }
+      } catch (err) {
+        chatTyping.classList.remove("show");
+        showToast(`Couldn't generate a session summary (${err.message || err}).`);
+      }
+    });
+
+    function showToast(msg) {
+      toast.textContent = msg;
+      toast.classList.add("show");
+      clearTimeout(showToast._t);
+      showToast._t = setTimeout(() => toast.classList.remove("show"), 4500);
+    }
+
+    function clearAll() {
+      textEl.value = "";
+      textEl.dispatchEvent(new Event("input"));
+      results.classList.remove("show");
+      emptyState.style.display = "block";
+      elapsedPill.style.display = "none";
+      statusText.textContent = "Ready · 1000+ languages";
+      wellbeingSection.classList.remove("show");
+      chatHistory = [];
+      chatLog.innerHTML = "";
+      crisisBanner.classList.remove("show");
+      sessionSummary.classList.remove("show");
+    }
+
+    /* =========================================================
+       Gauges & bars
+       ========================================================= */
+    const ARC_LEN = Math.PI * 80; // 251.327
+    function setGauge(positivity) {
+      // map 0..100 → 0..ARC_LEN
+      const filled = (Math.max(0, Math.min(100, positivity)) / 100) * ARC_LEN;
+      gArcFg.style.transition = "stroke-dashoffset 1s cubic-bezier(0.22,1,0.36,1)";
+      gArcFg.style.strokeDashoffset = String(ARC_LEN - filled);
+      gaugePct.textContent = `${Math.round(positivity)}%`;
+      let lab = "Neutral";
+      if (positivity < 35) lab = "Negative";
+      else if (positivity > 65) lab = "Positive";
+      gaugeLab.textContent = lab;
+      // needle rotation: -90° (left = 0%) to +90° (right = 100%)
+      const angle = -90 + (positivity / 100) * 180;
+      gNeedle.style.transition = "transform 1s cubic-bezier(0.22,1,0.36,1)";
+      gNeedle.setAttribute("transform", `translate(100,110) rotate(${angle.toFixed(2)})`);
+    }
+
+    function setBars(percent) {
+      bars.querySelectorAll(".bar-row").forEach((row) => {
+        const emo = row.dataset.emo;
+        const v = percent[emo] ?? 0;
+        const fill = row.querySelector(".fill");
+        const val = row.querySelector(".val");
+        // restart animation
+        fill.style.transition = "none";
+        fill.style.width = "0%";
+        requestAnimationFrame(() => {
+          fill.style.transition = "width 0.9s cubic-bezier(0.22,1,0.36,1)";
+          fill.style.width = `${Math.max(2, v).toFixed(1)}%`;
+        });
+        val.textContent = `${v.toFixed(1)}%`;
+        // tooltip
+        row.addEventListener("mousemove", (e) => {
+          tip.textContent = `${capitalize(emo)} · ${v.toFixed(2)}%`;
+          tip.style.left = e.pageX + "px";
+          tip.style.top = e.pageY + "px";
+          tip.classList.add("show");
+        });
+        row.addEventListener("mouseleave", () => tip.classList.remove("show"));
+      });
+    }
+
+    function capitalize(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
+
+    /* =========================================================
+       Confidence graph (canvas)
+       ========================================================= */
+    function drawConfidenceGraph(history, current) {
+      const dpr = window.devicePixelRatio || 1;
+      const w = confGraph.clientWidth;
+      const h = confGraph.clientHeight;
+      confGraph.width = w * dpr;
+      confGraph.height = h * dpr;
+      const ctx = confGraph.getContext("2d");
+      ctx.scale(dpr, dpr);
+      ctx.clearRect(0, 0, w, h);
+
+      // grid
+      ctx.strokeStyle = "rgba(126, 138, 255, 0.10)";
+      ctx.lineWidth = 1;
+      for (let i = 0; i <= 4; i++) {
+        const y = (h - 30) * (i / 4) + 10;
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(w, y);
+        ctx.stroke();
+      }
+
+      // y-axis labels (0..100)
+      ctx.fillStyle = "rgba(154, 163, 199, 0.6)";
+      ctx.font = "10px Inter, sans-serif";
+      ["100", "75", "50", "25", "0"].forEach((lab, i) => {
+        const y = (h - 30) * (i / 4) + 6;
+        ctx.fillText(lab + "%", 6, y + 6);
+      });
+
+      // line
+      const padL = 36, padB = 14, padT = 14, padR = 12;
+      const innerW = w - padL - padR;
+      const innerH = h - padT - padB;
+      const pts = history.map((v, i) => ({
+        x: padL + (i / (history.length - 1 || 1)) * innerW,
+        y: padT + (1 - v) * innerH,
+      }));
+      // gradient under line
+      const grad = ctx.createLinearGradient(0, padT, 0, padT + innerH);
+      grad.addColorStop(0, "rgba(124, 92, 255, 0.45)");
+      grad.addColorStop(1, "rgba(25, 227, 193, 0.0)");
+      // area
+      ctx.beginPath();
+      pts.forEach((p, i) => { i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y); });
+      ctx.lineTo(pts[pts.length - 1].x, padT + innerH);
+      ctx.lineTo(pts[0].x, padT + innerH);
+      ctx.closePath();
+      ctx.fillStyle = grad;
+      ctx.fill();
+      // line
+      ctx.beginPath();
+      pts.forEach((p, i) => { i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y); });
+      ctx.strokeStyle = "#7c5cff";
+      ctx.lineWidth = 2.5;
+      ctx.shadowColor = "rgba(124, 92, 255, 0.7)";
+      ctx.shadowBlur = 8;
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+      // last point
+      const last = pts[pts.length - 1];
+      ctx.beginPath();
+      ctx.arc(last.x, last.y, 4.5, 0, Math.PI * 2);
+      ctx.fillStyle = "#19e3c1";
+      ctx.shadowColor = "rgba(25, 227, 193, 0.7)";
+      ctx.shadowBlur = 10;
+      ctx.fill();
+      ctx.shadowBlur = 0;
+    }
+
+    /* =========================================================
+       Animate the confidence line growing up to the current value
+       ========================================================= */
+    function animateConfidenceUpTo(target) {
+      // synthetic "history" trace that climbs toward the target
+      const steps = 30;
+      const start = Math.max(0.4, target - 0.35);
+      const history = [];
+      for (let i = 0; i < steps; i++) {
+        const t = i / (steps - 1);
+        // ease-out
+        const eased = 1 - Math.pow(1 - t, 2);
+        history.push(start + (target - start) * eased);
+      }
+      let i = 0;
+      function tick() {
+        if (i >= history.length) {
+          confPct.textContent = `${(target * 100).toFixed(1)}%`;
+          return;
+        }
+        drawConfidenceGraph(history.slice(0, i + 1), history[i]);
+        confPct.textContent = `${(history[i] * 100).toFixed(0)}%`;
+        i++;
+        requestAnimationFrame(tick);
+      }
+      tick();
+    }
+
+    /* =========================================================
+       Resolve the /analyze endpoint URL.
+       - When the page is served over http(s) (Flask, dev server, preview),
+         use a same-origin relative URL so it works no matter which host
+         or port Flask is bound to.
+       - When the page is opened from the file system (double-clicking
+         index.html), fall back to the Flask default on localhost:5000.
+       This is the most common cause of the "Connection error" toast: a
+       stale hard-coded URL or a cross-origin fetch with no CORS headers
+       on the backend. See README.md → Troubleshooting.
+       ========================================================= */
+    const ANALYZE_URL = (() => {
+      const proto = (window.location.protocol || "").toLowerCase();
+      if (proto === "http:" || proto === "https:") return "/analyze";
+      return "http://127.0.0.1:5000/analyze";
+    })();
+
+    async function analyzeEmotion() {
+      const text = textEl.value.trim();
+      if (!text) {
+        showToast("Please enter some text — even a single sentence is fine.");
+        return;
+      }
+      analyzeBtn.disabled = true;
+      btnLabel.innerHTML = '<span class="spinner"></span> Analyzing…';
+      statusText.textContent = "Analyzing…";
+
+      const t0 = performance.now();
+      // Single point of reset for the button + status, so every early-return
+      // path below leaves the UI in a clean state.
+      const finish = () => {
+        analyzeBtn.disabled = false;
+        btnLabel.textContent = "✨ Analyze Emotion";
+      };
+      let r;
+      try {
+        r = await fetch(ANALYZE_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text }),
+        });
+      } catch (networkErr) {
+        // Most common here: page opened from file://, or backend not
+        // running, or CORS preflight rejected. Surface the real reason.
+        const where = window.location.protocol === "file:"
+          ? " It looks like you opened index.html directly — start the Flask server and use http://localhost:5000 instead."
+          : "";
+        showToast(`Couldn't reach the server at ${ANALYZE_URL}.${where} (${networkErr.message || networkErr})`);
+        statusText.textContent = "Connection error";
+        console.error("Analyze request failed:", networkErr);
+        finish();
+        return;
+      }
+
+      // Server responded, but with a non-2xx status. Read the body so we
+      // can show the server's own message instead of a generic toast.
+      if (!r.ok) {
+        let serverMsg = `HTTP ${r.status}`;
+        try {
+          const errBody = await r.json();
+          if (errBody && errBody.message) serverMsg = errBody.message;
+        } catch (_) {
+          // body wasn't JSON; stick with the HTTP status
+        }
+        showToast(`Server error: ${serverMsg}`);
+        statusText.textContent = `Error ${r.status}`;
+        finish();
+        return;
+      }
+
+      let data;
+      try {
+        data = await r.json();
+      } catch (parseErr) {
+        showToast(`Server returned an invalid response. (${parseErr.message || parseErr})`);
+        statusText.textContent = "Bad response";
+        finish();
+        return;
+      }
+
+      if (!data.ok) {
+        showToast(data.message || "We couldn't analyze that. Please try again.");
+        statusText.textContent = "Ready · 1000+ languages";
+        finish();
+        return;
+      }
+
+      // Empty state → results
+      emptyState.style.display = "none";
+      results.classList.add("show");
+
+      // Header
+      titleLine.textContent = "Multilingual Analysis Complete";
+      langLabel.textContent = `Detected: ${data.language}`;
+      metaLang.textContent = data.language;
+      metaWords.textContent = data.word_count;
+      elapsedPill.style.display = "inline-flex";
+      elapsedText.textContent = `${data.elapsed_ms.toFixed(0)}ms`;
+      statusText.textContent = `Done · ${data.elapsed_ms.toFixed(0)}ms · ${data.language}`;
+
+      // Greeting (Hello in the detected language)
+      if (data.greeting) greetingText.textContent = data.greeting;
+
+      // Summary
+      const topEmos = Object.entries(data.distribution_percent)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 2)
+        .map(([k]) => `<span class="emo">${EMOTION_ICONS[k] || ""} ${capitalize(k)}</span>`)
+        .join(" and ");
+      summary.innerHTML = `Detected primary emotions of ${topEmos}.`;
+
+      // Bars
+      setBars(data.distribution_percent);
+
+      // Gauge
+      setGauge(data.sentiment.positivity);
+
+      // Confidence
+      animateConfidenceUpTo(data.confidence);
+
+      // Wellbeing companion — opens with a reply that matches the
+      // detected language and emotion of what the user just analyzed.
+      startWellbeingChat(data.language, data.language_code, data.primary_emotion, text);
+
+      finish();
+    }
+
+    // pre-draw an empty confidence graph so the canvas is not blank
+    window.addEventListener("load", () => {
+      drawConfidenceGraph([0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95], 0.95);
+      confPct.textContent = "—";
+      // also auto-analyze the default example so the demo "feels alive"
+      // (disabled by default — uncomment if you want a wow effect on load)
+      // textEl.value = "i want my ex back";
+      // textEl.dispatchEvent(new Event("input"));
+      // analyzeEmotion();
+    });
+    window.addEventListener("resize", () => {
+      const cur = parseFloat(confPct.textContent);
+      if (!isNaN(cur)) drawConfidenceGraph([cur], cur/100);
+    });
+  </script>
+</body>
+</html>
